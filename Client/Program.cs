@@ -33,6 +33,9 @@ namespace Client
                     //Console.Clear();
                     Console.WriteLine("Введите сообщение.");
                     messageText = Console.ReadLine();
+                    // Добавим проверку на команду "Exit" для завершения работы клиента
+                    if (messageText.ToLower() == "exit")
+                        return;
                 }
                 while (string.IsNullOrEmpty(messageText));
 
