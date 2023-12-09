@@ -14,7 +14,35 @@ namespace Server
         /// </summary>
         static async Task Main(string[] args)
         {
-            await Server("Hello");
+            using CancellationTokenSource cts = new CancellationTokenSource();
+
+            Task serverTask = Task.Run(() => Server("Hello", cts.Token));
+            Task readKeyTask = Task.Run(() =>
+            {
+                Console.WriteLine("Для завершения работы сервера нажмите клавишу 'q' и Enter.");
+                while (true)
+                {
+                    if (Console.ReadKey(true).KeyChar == 'q')
+                    {
+                        cts.Cancel();
+                        break;
+                    }
+                }
+            });
+
+            try
+            {
+                await Task.WhenAny(serverTask, readKeyTask);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Работа сервера остановлена по запросу.");
+            }
+            finally
+            {
+                Console.WriteLine("Работа сервера остановлена по запросу.");
+                cts.Cancel(); // Убедимся, что сервер завершит работу
+            }
         }
 
         /// <summary>
@@ -33,45 +61,33 @@ namespace Server
         /// В случае ввода символа 'q' в консоли завершает работу сервера.
         /// </summary>
         /// <param name="name">Просто строка для инициализации объекта сообщения для тестирования.</param>
-        public static async Task Server(string name)
+        public static async Task Server(string name, CancellationToken cancellationToken)
         {
-            CancellationTokenSource cts = new CancellationTokenSource();
-            Task serverTask = Task.Run(async () =>
+            try
             {
                 UdpClient udpClient = new UdpClient(12345);
                 IPEndPoint clientEndPoint = new IPEndPoint(IPAddress.Any, 0);
 
                 Console.WriteLine("Сервер ждет сообщение от клиента");
 
-                while (!cts.Token.IsCancellationRequested)
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    byte[] buffer = udpClient.Receive(ref clientEndPoint);
+                    var result = await udpClient.ReceiveAsync();
+                    if (result.Buffer == null || result.Buffer.Length == 0) break;
 
-                    if (buffer == null) break;
-
-                    var messageText = Encoding.UTF8.GetString(buffer);
+                    var messageText = Encoding.UTF8.GetString(result.Buffer);
                     Message message = Message.DeserializeFromJson(messageText);
                     message.Print();
                     byte[] acknowledgment = Encoding.UTF8.GetBytes("Message received!");
-                    udpClient.Send(acknowledgment, acknowledgment.Length, clientEndPoint);
+                    await udpClient.SendAsync(acknowledgment, acknowledgment.Length, result.RemoteEndPoint);
                     Console.WriteLine("Подтверждение отправлено клиенту.");
-                    await Task.Delay(100); // Задержка для освобождения процессора
+                    await Task.Delay(100, cancellationToken); // Задержка для освобождения процессора
                 }
-            });
-            Task readKeyTask = Task.Run(() =>
+            }
+            catch (OperationCanceledException)
             {
-                while (true)
-                {
-                    if (Console.ReadKey(true).KeyChar == 'q')
-                    {
-                        cts.Cancel(); // Отмена задачи сервера
-                        break;
-                    }
-                }
-            });
-
-            // Ожидание завершения задачи сервера
-            await Task.WhenAny(serverTask, readKeyTask);
+                Console.WriteLine("Работа сервера остановлена по запросу.");
+            }
         }
     }
 }
