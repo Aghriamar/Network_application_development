@@ -1,5 +1,4 @@
 ﻿using Server;
-using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -22,37 +21,31 @@ namespace Client
         /// <param name="ip">IP-адрес сервера.</param>
         public static void SentMessage(string from, string ip)
         {
-            UdpClient udpClient = new UdpClient();
-            IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Parse(ip), 12345);
-
-            while (true)
+            using (UdpClient udpClient = new UdpClient())
             {
-                string messageText;
-                do
+                IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Parse(ip), 12345);
+                IMessageFactory messageFactory = new MessageFactory();
+
+                while (true)
                 {
-                    //Console.Clear();
                     Console.WriteLine("Введите сообщение.");
-                    messageText = Console.ReadLine();
-                    // Добавим проверку на команду "Exit" для завершения работы клиента
-                    if (messageText.ToLower() == "exit")
-                        return;
+                    string messageText = Console.ReadLine();
+
+                    // Проверка на команду "Exit" для завершения работы клиента
+                    if (messageText?.ToLower() == "exit")
+                        break;
+
+                    if (!string.IsNullOrEmpty(messageText))
+                    {
+                        Message message = messageFactory.CreateMessage(messageText, from, "Server", serverEndPoint);
+                        string json = message.SerializeMessageToJson();
+                        byte[] data = Encoding.UTF8.GetBytes(json);
+                        udpClient.Send(data, data.Length, serverEndPoint);
+                        byte[] receivedData = udpClient.Receive(ref serverEndPoint);
+                        string receivedMessage = Encoding.UTF8.GetString(receivedData);
+                        Console.WriteLine($"Сообщение получено сервером: {receivedMessage}");
+                    }
                 }
-                while (string.IsNullOrEmpty(messageText));
-
-                Message message = new Message()
-                {
-                    Text = messageText,
-                    NicknameFrom = from,
-                    NicknameTo = "Server",
-                    DateTime = DateTime.Now
-                };
-
-                string json = message.SerializeMessageToJson();
-                byte[] data = Encoding.UTF8.GetBytes(json);
-                udpClient.Send(data, data.Length, serverEndPoint);
-                byte[] receivedData = udpClient.Receive(ref serverEndPoint);
-                string receivedMessage = Encoding.UTF8.GetString(receivedData);
-                Console.WriteLine($"Сообщение получено сервером: {receivedMessage}");
             }
         }
     }

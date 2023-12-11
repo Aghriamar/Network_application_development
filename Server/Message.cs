@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Net;
 using System.Text.Json;
-using System.Threading.Tasks;
+using System.Text.Json.Serialization;
 
 namespace Server
 {
@@ -12,10 +9,12 @@ namespace Server
     /// </summary>
     public class Message
     {
-        public string Text { get; set; }
+        public string? Text { get; set; }
         public DateTime DateTime { get; set; }
-        public string NicknameFrom { get; set; }
-        public string NicknameTo { get; set; }
+        public string? NicknameFrom { get; set; }
+        public string? NicknameTo { get; set; }
+        [JsonIgnore]
+        public IPEndPoint? SenderEndPoint { get; set; }
 
         /// <summary>
         /// Сериализует сообщение в формат JSON.
