@@ -2,6 +2,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 
 namespace Client
 {
@@ -25,25 +26,49 @@ namespace Client
             {
                 IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Parse(ip), 12345);
                 IMessageFactory messageFactory = new MessageFactory();
+                Console.WriteLine("Введите команду ('exit' для выхода, 'getUnread' для получения непрочитанных сообщений):");
 
                 while (true)
                 {
-                    Console.WriteLine("Введите сообщение.");
-                    string messageText = Console.ReadLine();
+                    string input = Console.ReadLine();
 
-                    // Проверка на команду "Exit" для завершения работы клиента
-                    if (messageText?.ToLower() == "exit")
+                    if (input?.ToLower() == "exit")
                         break;
 
-                    if (!string.IsNullOrEmpty(messageText))
+                    if (input?.ToLower() == "getunread")
                     {
-                        Message message = messageFactory.CreateMessage(messageText, from, "Server", serverEndPoint);
+                        // Запрос непрочитанных сообщений
+                        string getUnreadRequest = "getUnread";
+                        byte[] requestData = Encoding.UTF8.GetBytes(getUnreadRequest);
+                        udpClient.Send(requestData, requestData.Length, serverEndPoint);
+
+                        byte[] receivedData = udpClient.Receive(ref serverEndPoint);
+                        string receivedMessage = Encoding.UTF8.GetString(receivedData);
+
+                        List<Message> unreadMessages = JsonSerializer.Deserialize<List<Message>>(receivedMessage);
+
+                        if (unreadMessages.Count == 0)
+                        {
+                            Console.WriteLine("Нет непрочитанных сообщений.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Непрочитанные сообщения:");
+                            foreach (var msg in unreadMessages)
+                            {
+                                Console.WriteLine($"Время: {msg.DateTime}\nОт: {msg.NicknameFrom}\nСообщение: {msg.Text}");
+                            }
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(input))
+                    {
+                        Message message = messageFactory.CreateMessage(input, from, "Server", serverEndPoint);
                         string json = message.SerializeMessageToJson();
                         byte[] data = Encoding.UTF8.GetBytes(json);
                         udpClient.Send(data, data.Length, serverEndPoint);
-                        byte[] receivedData = udpClient.Receive(ref serverEndPoint);
-                        string receivedMessage = Encoding.UTF8.GetString(receivedData);
-                        Console.WriteLine($"Сообщение получено сервером: {receivedMessage}");
+                        byte[] acknowledgmentData = udpClient.Receive(ref serverEndPoint);
+                        string acknowledgment = Encoding.UTF8.GetString(acknowledgmentData);
+                        Console.WriteLine($"Сообщение получено сервером: {acknowledgment}");
                     }
                 }
             }

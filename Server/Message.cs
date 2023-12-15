@@ -15,7 +15,7 @@ namespace Server
         public string? NicknameTo { get; set; }
         [JsonIgnore]
         public IPEndPoint? SenderEndPoint { get; set; }
-
+        
         /// <summary>
         /// Сериализует сообщение в формат JSON.
         /// </summary>

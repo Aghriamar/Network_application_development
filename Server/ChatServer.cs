@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 
 namespace Server
 {
@@ -13,6 +14,7 @@ namespace Server
         private List<IPEndPoint> clients = new List<IPEndPoint>();
         private List<IObserver> observers = new List<IObserver>();
         private UdpClient udpClient;
+        private Dictionary<IPEndPoint, List<Message>> unreadMessages = new Dictionary<IPEndPoint, List<Message>>();
 
         /// <summary>
         /// Инициализирует новый экземпляр класса ChatServer.
@@ -43,13 +45,26 @@ namespace Server
                     if (result.Buffer == null || result.Buffer.Length == 0) break;
 
                     var messageText = Encoding.UTF8.GetString(result.Buffer);
-                    Message? message = Message.DeserializeFromJson(messageText);
-                    message.Print();
-                    ICommand sendMessage = new SendMessageCommand(ChatServer.Instance, message);
-                    sendMessage.Execute();
-                    byte[] acknowledgment = Encoding.UTF8.GetBytes("Message received!");
-                    await udpClient.SendAsync(acknowledgment, acknowledgment.Length, result.RemoteEndPoint);
-                    Console.WriteLine("Подтверждение отправлено клиенту.");
+                    if (messageText.ToLower() == "getunread")
+                    {
+                        // Обработка запроса на получение непрочитанных сообщений
+                        ChatServer.Instance.SendUnreadMessages(result.RemoteEndPoint);
+                    }
+                    else
+                    {
+                        Message? message = Message.DeserializeFromJson(messageText);
+                        message.Print();
+                        ICommand sendMessage = new SendMessageCommand(ChatServer.Instance, message);
+                        sendMessage.Execute();
+
+                        // Добавление непрочитанного сообщения клиенту
+                        ChatServer.Instance.AddUnreadMessage(result.RemoteEndPoint, message);
+
+                        byte[] acknowledgment = Encoding.UTF8.GetBytes("Message received!");
+                        await udpClient.SendAsync(acknowledgment, acknowledgment.Length, result.RemoteEndPoint);
+                        Console.WriteLine("Подтверждение отправлено клиенту.");
+                    }
+
                     await Task.Delay(100, cancellationToken); // Задержка для освобождения процессора
                 }
             }
@@ -123,6 +138,50 @@ namespace Server
             Console.WriteLine($"Отправка сообщения: {message.Text}");
 
             await Notify(message);
+        }
+
+        /// <summary>
+        /// Добавляет непрочитанное сообщение для указанного клиента.
+        /// </summary>
+        /// <param name="clientEndPoint">IP-адрес и порт клиента.</param>
+        /// <param name="message">Сообщение для добавления в список непрочитанных.</param>
+        public void AddUnreadMessage(IPEndPoint clientEndPoint, Message message)
+        {
+            if (!unreadMessages.ContainsKey(clientEndPoint))
+            {
+                unreadMessages[clientEndPoint] = new List<Message>();
+            }
+
+            unreadMessages[clientEndPoint].Add(message);
+        }
+
+        /// <summary>
+        /// Получает список непрочитанных сообщений для указанного клиента.
+        /// </summary>
+        /// <param name="clientEndPoint">IP-адрес и порт клиента.</param>
+        /// <returns>Список непрочитанных сообщений клиента.</returns>
+        public List<Message> GetUnreadMessages(IPEndPoint clientEndPoint)
+        {
+            if (unreadMessages.ContainsKey(clientEndPoint))
+            {
+                return unreadMessages[clientEndPoint];
+            }
+
+            return new List<Message>();
+        }
+
+        /// <summary>
+        /// Отправляет список непрочитанных сообщений указанному клиенту по его IP-адресу и порту.
+        /// </summary>
+        /// <param name="clientEndPoint">IP-адрес и порт клиента.</param>
+        /// <returns>Асинхронная задача отправки непрочитанных сообщений клиенту.</returns>
+        public async Task SendUnreadMessages(IPEndPoint clientEndPoint)
+        {
+            List<Message> unreadMessages = GetUnreadMessages(clientEndPoint);
+            string messagesJson = JsonSerializer.Serialize(unreadMessages);
+
+            byte[] data = Encoding.UTF8.GetBytes(messagesJson);
+            await udpClient.SendAsync(data, data.Length, clientEndPoint);
         }
     }
 }
