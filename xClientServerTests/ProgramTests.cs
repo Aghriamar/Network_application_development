@@ -121,7 +121,7 @@ namespace xClientServerTests
         /// <param name="from">От кого сообщение.</param>
         /// <param name="ip">IP-адрес сервера.</param>
         /// <returns>Возвращает строку с непрочитанными сообщениями или null, если что-то пошло не так.</returns>
-        private async Task<string> GetUnreadMessages(string from, string ip)
+        private async Task<string?> GetUnreadMessages(string from, string ip)
         {
             try
             {
