@@ -13,7 +13,7 @@ namespace xClientServerTests
     public class ProgramTests
     {
         /// <summary>
-        /// “ест провер€ет успешное завершение работы приложени€ при вводе команды "exit".
+        /// “ест провер€ет успешное завершение работа приложени€ при вводе команды "exit".
         /// </summary>
         [Fact]
         public void SentMessage_ExitCommand_ShouldExitSuccessfully()
