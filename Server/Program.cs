@@ -1,4 +1,4 @@
-﻿
+﻿using NetMQUtilities;
 
 namespace Server
 {
@@ -9,8 +9,13 @@ namespace Server
         /// </summary>
         static async Task Main(string[] args)
         {
+            var serverAddress = "tcp://127.0.0.1:12345";
+            var server = new NetMQMessageSource(serverAddress, "Server");
+
             using CancellationTokenSource cts = new CancellationTokenSource();
-            Task serverTask = Task.Run(() => ChatServer.Instance.StartAsync(cts.Token));
+            CancellationToken token = cts.Token;
+
+            Task serverTask = Task.Run(() => server.StartReceiving(token));
             Task readKeyTask = Task.Run(() =>
             {
                 Console.WriteLine("Для завершения работы сервера нажмите клавишу 'q' и Enter.");
@@ -28,14 +33,18 @@ namespace Server
             {
                 await Task.WhenAny(serverTask, readKeyTask);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException ex)
             {
                 Console.WriteLine("Работа сервера остановлена по запросу.");
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine($"Ошибка. {ex.Message}");
             }
             finally
             {
                 Console.WriteLine("Работа сервера остановлена по запросу.");
-                cts.Cancel(); // Убедимся, что сервер завершит работу
+                cts.Cancel();
             }
         }
     }
